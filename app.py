@@ -1,9 +1,10 @@
 import streamlit as st
+import random
 
-# 1. Professional Page Settings
-st.set_page_config(page_title="LocalGrow AI - Smart Pro Suite", layout="wide")
+# 1. Page Configuration
+st.set_page_config(page_title="LocalGrow AI - 2026 SERP Suite", layout="wide")
 
-# 2. Easy Access Sidebar Gate
+# 2. Secure Gate Login
 PASSWORD_INPUT = st.sidebar.text_input("🔑 Enter Secret Access Key", type="password")
 CORRECT_PASSWORD = "GrowYourBusiness2026"
 
@@ -14,31 +15,93 @@ if PASSWORD_INPUT != CORRECT_PASSWORD:
 else:
     st.sidebar.success("🔓 App Unlocked!")
     
-    # Visual Navigation 
+    # Navigation
     st.sidebar.title("🎛️ App Menu")
     app_mode = st.sidebar.radio(
         "Choose Your Tool:",
-        ["📈 Google Ads Quality Check", "🏪 SEO & API Review Replier", "🔍 Website Audit (Soon)"]
+        ["🏪 Advanced Dynamic AI Review Engine", "📈 Google Ads Quality Check", "🔍 Website Audit (Soon)"]
     )
     
     active_client = st.sidebar.selectbox("🎯 Target Business:", ["My Business", "Friend's Business"])
 
-    # Define smart defaults for your accounts
+    # Core lists of neighborhoods within 25KM radius
     if active_client == "My Business":
-        default_biz_name = "Raju Cars Detailing"
-        default_area = "Injambakkam, Chennai"
-        default_service = "Premium Ceramic Coating"
-        default_support = "support@rajucars.com"
+        biz_name = "Raju Cars Detailing"
+        base_location = "Injambakkam"
+        service_focus = "ceramic coating and car scratch removal"
+        support_channel = "management@rajucars.com"
+        # 25KM radius areas for car business
+        all_neighborhoods = ["Thiruvanmiyur", "Sholinganallur", "ECR Road", "Palavakkam", "Neelankarai", "OMR Corridor", "Perungudi", "Kottivakkam", "Akkarai", "Uthandi"]
     else:
-        default_biz_name = "Friend's Premium Bakery"
-        default_area = "Adyar, Chennai"
-        default_service = "Custom Birthday Cakes"
-        default_support = "help@premiumbakery.com"
+        biz_name = "Friend's Premium Bakery"
+        base_location = "Adyar"
+        service_focus = "custom birthday cakes and sourdough bread"
+        support_channel = "orders@premiumbakery.com"
+        # 25KM radius areas for bakery business
+        all_neighborhoods = ["Besant Nagar", "Mylapore", "Gandhi Nagar", "RA Puram", "Velachery", "T-Nagar", "Kotturpuram", "Alwarpet", "Mandaveli", "Guindy"]
 
     # ==========================================
-    # MODULE 1: GOOGLE ADS QUALITY CHECK
+    # MODULE: ADVANCED DYNAMIC AI REVIEW ENGINE
     # ==========================================
-    if app_mode == "📈 Google Ads Quality Check":
+    if app_mode == "🏪 Advanced Dynamic AI Review Engine":
+        st.title("🏪 2026 Real-Time Dynamic Maps SEO Engine")
+        st.write("Every click randomly shuffles service roads and areas to stay natural and look human.")
+        st.write("---")
+
+        st.subheader("📋 Step 1: Real-Time Review Input Ledger")
+        col_name, col_stars = st.columns(2)
+        with col_name:
+            customer_name = st.text_input("👤 Customer Name:", value="Alex Harrison")
+        with col_stars:
+            star_rating = st.selectbox("⭐ Review Rating Star Level:", ["⭐⭐⭐⭐⭐ (5-Star Appreciative)", "⭐ (1-Star Complaint)"])
+
+        review_content = st.text_area(
+            "💬 Paste the exact text left by the customer:",
+            value="Absolutely blown away by the service. They were completely on time and did an amazing job on my vehicle. Will tell all my friends." if "5-Star" in star_rating else "Terrible experience. The communication was bad, they missed my time window, and the quality was poor."
+        )
+
+        st.write("---")
+
+        if st.button("⚡ Process Real-Time AI Response"):
+            st.subheader("🧠 Step 2: Generated Natural Review Response")
+            
+            # --- THE GRAY-HAT SHUFFLER LOGIC ---
+            # Randomly pick 2 different neighborhoods from our 25KM list every single click
+            shuffled_areas = random.sample(all_neighborhoods, 2)
+            area_one = shuffled_areas[0]
+            area_two = shuffled_areas[1]
+
+            # Randomly switch up the friendly sign-offs to look natural
+            good_closings = ["Appreciate you trustin us!", "Thanks for choosing us!", "See you next time buddy", "Glad we could help out!"]
+            chosen_closing = random.choice(good_closings)
+
+            if "5-Star" in star_rating:
+                st.success("🔥 **DYNAMIC APPRECIATION ENGINE LINKED** — Strategy: Proud customer + randomized 25KM locations.")
+                
+                # Conversational template with randomized locations and informal lowercase style
+                simulated_response = (
+                    f"Hi {customer_name}! thanks so much for the awesome words, it honestly makes our whole crew super proud to read this. "
+                    f"We love helping out neighbors with premium {service_focus} all across the {base_location} area, and we frequently drive out to clients in nearby spots like {area_one} and {area_two} too. "
+                    f"hearing that you want to recommend {biz_name} to your friends is the biggest win we could ask for. {chosen_closing}"
+                )
+            else:
+                st.error("🛡️ **DIPLOMATIC COMPLAINT DAMAGE CONTROL ACTIVE** — Strategy: Move offline + keep brand safe.")
+                
+                simulated_response = (
+                    f"Hello {customer_name}. The management team at {biz_name} takes all operational feedback very seriously. "
+                    f"We maintain strict standards for our {service_focus} solutions throughout the {base_location} region, including our surrounding service delivery sectors like {area_one} and {area_two}. "
+                    f"We sincerely apologize that your experience did not align with our usual high quality. We want to take full control of this issue and fix it immediately. "
+                    f"Please contact our coordinator directly at {support_channel} so we can gather your details and resolve this matter offline."
+                )
+
+            st.info("📋 **Live Output (SEO Crawl & SERP Safe Version):**")
+            st.code(simulated_response, language="text")
+            st.caption("✨ *Notice: Click the button again to see the target neighborhoods and sign-offs change completely at random!*")
+
+    # ==========================================
+    # MODULE: GOOGLE ADS QUALITY CHECK
+    # ==========================================
+    elif app_mode == "📈 Google Ads Quality Check":
         st.title(f"🚀 Google Ads Optimizer > {active_client}")
         st.write("We scan your ad performance numbers to stop wasted spend and find real buyers.")
         st.write("---")
@@ -65,86 +128,7 @@ else:
             with m3:
                 st.metric(label="💸 Estimated Budget Wasted", value=f"{waste_percentage:.0f}%")
 
-    # ==========================================
-    # MODULE 2: SEO & API REVIEW REPLIER
-    # ==========================================
-    elif app_mode == "🏪 SEO & API Review Replier":
-        st.title("🏪 2026 Map-Ranking & Natural Review Assistant")
-        st.write("Craft personalized, diplomatic replies that target local maps rankings automatically.")
-        st.write("---")
-        
-        # SEO Parameter Fields
-        st.subheader("🎯 Step 1: Verify Business Target Parameters")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            biz_name = st.text_input("🏢 Business Name:", value=default_biz_name)
-        with col2:
-            serving_area = st.text_input("📍 Serving Location:", value=default_area)
-        with col3:
-            seo_service = st.text_input("🔑 High-Value Service Focus:", value=default_service)
-
-        st.write("---")
-
-        # Input fields for customer review text data
-        st.subheader("📝 Step 2: Paste Customer Review Information")
-        
-        c_name = st.text_input("👤 Customer Name (For custom salutation):", value="John Doe")
-        review_text = st.text_area(
-            "Review text comment left by user:",
-            value="The service was terrible. The staff was incredibly rude, and they completely missed my scheduled appointment window. Very disappointed."
-        )
-        
-        # High-value feature: Dynamic context text boxes
-        st.subheader("👁️ Step 3: What did they specifically mention?")
-        col_app, col_comp = st.columns(2)
-        with col_app:
-            appreciated_point = st.text_input("❤️ What did they APPRECIATE? (Leave blank if none):", value="")
-        with col_comp:
-            complaint_point = st.text_input("💔 What did they COMPLAIN about? (Leave blank if none):", value="Rude staff and missed appointment window")
-        
-        st.write("---")
-        
-        # Generation Engine
-        if st.button("✨ Generate Natural SEO Response"):
-            st.subheader("🦾 Step 4: Review Your Natural AI Reply Template")
-            
-            # Smart Custom Keyword Insertion System Engine
-            if complaint_point:
-                st.error("🚨 **DIPLOMATIC COMPLAINT RESPONSE ENGINE ACTIVE**")
-                reply_output = (
-                    f"Hello {c_name},\n\n"
-                    f"Thank you for contacting us at {biz_name}. We take your feedback regarding '{complaint_point}' very seriously. "
-                    f"Our goal is always to provide high-quality {seo_service} to our community in {serving_area}, and it is clear we missed the mark during your experience. "
-                    f"We maintain a strict standard for polite, natural, and transparent service, and we would like to look into this matter directly to make things right. "
-                    f"Please contact our support team at {default_support} so we can investigate and resolve this issue for you as quickly as possible.\n\n"
-                    f"Best regards,\n"
-                    f"The Management Team at {biz_name}"
-                )
-            else:
-                st.success("🎉 **NATURAL APPRECIATION RESPONSE ENGINE ACTIVE**")
-                praise = appreciated_point if appreciated_point else "our fast and professional service"
-                reply_output = (
-                    f"Hi {c_name},\n\n"
-                    f"Thank you so much for the fantastic rating! The entire team at {biz_name} is thrilled to hear you appreciated '{praise}'. "
-                    f"We love being a trusted local provider for {seo_service} here in {serving_area}, and your positive review helps our business stand out online. "
-                    f"We truly appreciate your support and look forward to serving you again soon!\n\n"
-                    f"Warm regards,\n"
-                    f"The Team at {biz_name}"
-                )
-
-            st.info("📋 **Final Draft Analysis Output:**")
-            st.code(reply_output, language="text")
-            
-            # API Direct Sync Live Simulation Trigger Check
-            st.write("---")
-            st.subheader("📡 Step 5: Direct Google API Link Sync Command")
-            
-            st.warning("🔌 *Google API Connection status: Personal Local Account Sandbox. OAuth Verification needed to go live.*")
-            if st.button("⚡ Post Reply Directly to Google Business Profile"):
-                st.info("Initiating secure API connection protocol sequence...")
-                st.success(f"🤖 **Simulated API Push Successful!** Posted tailored response to Google Business Profile for {biz_name} safely!")
-
-    # Phase 3 Expansion Slot
+    # Module 3 Placeholder
     elif app_mode == "🔍 Website Audit (Soon)":
         st.title("🔍 Local SEO Explorer")
         st.info("Coming soon in Phase 3.")
