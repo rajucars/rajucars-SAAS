@@ -1,1 +1,6 @@
+streamlit
 anthropic
+google-ads
+pandas
+requests
+python-dotenv
