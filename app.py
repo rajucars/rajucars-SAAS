@@ -116,6 +116,17 @@ BUSINESS_PROFILES = {
 }
 
 
+GOOGLE_ADS_API_VERSION = "v24"
+GOOGLE_ADS_SECRET_KEYS = {
+    "developer_token": "GOOGLE_ADS_DEVELOPER_TOKEN",
+    "client_id": "GOOGLE_ADS_CLIENT_ID",
+    "client_secret": "GOOGLE_ADS_CLIENT_SECRET",
+    "refresh_token": "GOOGLE_ADS_REFRESH_TOKEN",
+    "customer_id": "GOOGLE_ADS_CUSTOMER_ID",
+    "login_customer_id": "GOOGLE_ADS_LOGIN_CUSTOMER_ID",
+}
+
+
 st.markdown(
     """
     <style>
@@ -609,6 +620,179 @@ def filter_dataframe(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     return result
 
 
+def read_secret(name: str) -> str:
+    try:
+        value = st.secrets.get(name, "")
+    except Exception:
+        value = ""
+    return str(value).strip() if value is not None else ""
+
+
+def normalize_customer_id(value: str) -> str:
+    return "".join(ch for ch in str(value) if ch.isdigit())
+
+
+def get_google_ads_settings() -> dict:
+    settings = {
+        key: read_secret(secret_name)
+        for key, secret_name in GOOGLE_ADS_SECRET_KEYS.items()
+    }
+    settings["customer_id"] = normalize_customer_id(settings["customer_id"])
+    settings["login_customer_id"] = normalize_customer_id(settings["login_customer_id"])
+    settings["api_version"] = read_secret("GOOGLE_ADS_API_VERSION") or GOOGLE_ADS_API_VERSION
+    return settings
+
+
+def missing_google_ads_settings(settings: dict) -> list[str]:
+    required = ["developer_token", "client_id", "client_secret", "refresh_token", "customer_id"]
+    return [GOOGLE_ADS_SECRET_KEYS[key] for key in required if not settings.get(key)]
+
+
+def google_ads_config_table(settings: dict) -> pd.DataFrame:
+    rows = []
+    labels = {
+        "developer_token": "Developer token",
+        "client_id": "OAuth client ID",
+        "client_secret": "OAuth client secret",
+        "refresh_token": "OAuth refresh token",
+        "customer_id": "Client customer ID",
+        "login_customer_id": "Manager login customer ID",
+    }
+    for key, label in labels.items():
+        required = key != "login_customer_id"
+        value = settings.get(key, "")
+        rows.append(
+            {
+                "Setting": label,
+                "Secret name": GOOGLE_ADS_SECRET_KEYS[key],
+                "Required": "Yes" if required else "Only for MCC access",
+                "Status": "Configured" if value else "Missing",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def load_google_ads_client(settings: dict):
+    try:
+        from google.ads.googleads.client import GoogleAdsClient
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Google Ads Python library is not installed. Add google-ads to requirements.txt and redeploy Streamlit."
+        ) from exc
+
+    config = {
+        "developer_token": settings["developer_token"],
+        "client_id": settings["client_id"],
+        "client_secret": settings["client_secret"],
+        "refresh_token": settings["refresh_token"],
+        "use_proto_plus": True,
+    }
+    if settings.get("login_customer_id"):
+        config["login_customer_id"] = settings["login_customer_id"]
+
+    return GoogleAdsClient.load_from_dict(config, version=settings["api_version"])
+
+
+def resolve_google_ads_dates(date_range) -> tuple[str, str]:
+    if isinstance(date_range, tuple) and len(date_range) == 2:
+        start_date, end_date = date_range
+    else:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=7)
+    return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+
+
+def live_google_ads_action(row: pd.Series, goal_cpa: float) -> str:
+    conversions = float(row["Conversions"])
+    cost = float(row["Cost"])
+    clicks = int(row["Clicks"])
+    if cost > 0 and conversions == 0:
+        return "Check conversion tracking, search terms and landing page before increasing budget."
+    if conversions > 0 and goal_cpa > 0 and row["Cost / Conversion"] > goal_cpa:
+        return "Reduce waste: inspect search terms, refine match types and improve buyer qualification."
+    if clicks > 0 and conversions / clicks < 0.03:
+        return "Improve lead quality: add clearer offer, proof, price range and qualifying questions."
+    return "Maintain controlled budget and test one improvement at a time."
+
+
+def fetch_google_ads_campaign_metrics(settings: dict, date_range, goal_cpa: float) -> pd.DataFrame:
+    client = load_google_ads_client(settings)
+    customer_id = settings["customer_id"]
+    start_date, end_date = resolve_google_ads_dates(date_range)
+
+    query = f"""
+        SELECT
+          campaign.id,
+          campaign.name,
+          campaign.status,
+          campaign.advertising_channel_type,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.conversions,
+          metrics.all_conversions
+        FROM campaign
+        WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
+        ORDER BY metrics.cost_micros DESC
+        LIMIT 50
+    """
+
+    service = client.get_service("GoogleAdsService")
+    rows = []
+    response = service.search_stream(customer_id=customer_id, query=query)
+
+    for batch in response:
+        for row in batch.results:
+            cost = float(row.metrics.cost_micros or 0) / 1_000_000
+            conversions = float(row.metrics.conversions or 0)
+            cost_per_conversion = cost / conversions if conversions else 0
+            status = getattr(row.campaign.status, "name", str(row.campaign.status))
+            channel = getattr(
+                row.campaign.advertising_channel_type,
+                "name",
+                str(row.campaign.advertising_channel_type),
+            )
+            rows.append(
+                {
+                    "Campaign ID": row.campaign.id,
+                    "Campaign": row.campaign.name,
+                    "Channel": status_clean(channel),
+                    "Status": status_clean(status),
+                    "Impressions": int(row.metrics.impressions or 0),
+                    "Clicks": int(row.metrics.clicks or 0),
+                    "Cost": cost,
+                    "Conversions": conversions,
+                    "All Conversions": float(row.metrics.all_conversions or 0),
+                    "Cost / Conversion": cost_per_conversion,
+                }
+            )
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "Campaign ID",
+                "Campaign",
+                "Channel",
+                "Status",
+                "Impressions",
+                "Clicks",
+                "Cost",
+                "Conversions",
+                "All Conversions",
+                "Cost / Conversion",
+                "Suggested Action",
+            ]
+        )
+
+    df["Suggested Action"] = df.apply(lambda row: live_google_ads_action(row, goal_cpa), axis=1)
+    return df
+
+
+def status_clean(value: str) -> str:
+    return str(value).replace("_", " ").title()
+
+
 def render_sidebar() -> tuple[str, dict, str]:
     st.sidebar.title("LocalGrow AI")
     user = st.session_state.user
@@ -737,8 +921,87 @@ def render_owner_dashboard(profile_name: str, profile: dict, filters: dict) -> N
         st.dataframe(content, use_container_width=True, hide_index=True)
 
 
+def render_google_ads_connection_panel(filters: dict) -> None:
+    st.subheader("Direct Google Ads API connection")
+    st.caption("Read-only live reporting. Keep manual/sample mode until Google credentials are configured.")
+
+    settings = get_google_ads_settings()
+    status_df = google_ads_config_table(settings)
+    st.dataframe(status_df, use_container_width=True, hide_index=True)
+
+    with st.expander("Streamlit Secrets format"):
+        st.write("Paste these values in Streamlit Cloud under App Settings > Secrets. Do not paste real secrets into GitHub.")
+        st.code(
+            """
+GOOGLE_ADS_DEVELOPER_TOKEN = "your-developer-token"
+GOOGLE_ADS_CLIENT_ID = "your-oauth-client-id"
+GOOGLE_ADS_CLIENT_SECRET = "your-oauth-client-secret"
+GOOGLE_ADS_REFRESH_TOKEN = "your-refresh-token"
+GOOGLE_ADS_CUSTOMER_ID = "1234567890"
+
+# Optional, only when accessing client accounts through an MCC manager account.
+GOOGLE_ADS_LOGIN_CUSTOMER_ID = "0987654321"
+
+# Keep v24 for Google Ads API v24.x client library support.
+GOOGLE_ADS_API_VERSION = "v24"
+            """.strip(),
+            language="toml",
+        )
+        st.write(
+            "Customer IDs should be numbers only, without hyphens. The customer account must have conversion tracking "
+            "configured if you want cost-per-conversion and corrective actions to be meaningful."
+        )
+
+    missing = missing_google_ads_settings(settings)
+    if missing:
+        st.warning("Google Ads API is not connected yet. Missing secrets: " + ", ".join(missing))
+        st.info("You can continue using the manual audit below until these values are added.")
+        return
+
+    goal_cpa = st.number_input(
+        "Target cost per conversion for live report",
+        min_value=1,
+        value=1800,
+        step=100,
+        help="Used only for SaaS corrective-action suggestions. Google will return account-currency cost.",
+    )
+
+    if st.button("Fetch live Google Ads campaign metrics", type="primary"):
+        with st.spinner("Connecting to Google Ads API and reading campaign performance..."):
+            try:
+                live_df = fetch_google_ads_campaign_metrics(settings, filters["date_range"], goal_cpa)
+            except Exception as exc:
+                st.error("Could not fetch Google Ads data.")
+                st.caption(f"{exc.__class__.__name__}: {exc}")
+                st.info(
+                    "Check developer token approval, OAuth refresh token, customer ID, MCC login customer ID and account permissions."
+                )
+                return
+
+        if live_df.empty:
+            st.info("Connected, but no campaign rows were returned for this date range.")
+            return
+
+        st.success("Live Google Ads data loaded.")
+        st.dataframe(
+            live_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Cost": st.column_config.NumberColumn("Cost", format="%.2f"),
+                "Conversions": st.column_config.NumberColumn("Conversions", format="%.2f"),
+                "All Conversions": st.column_config.NumberColumn("All Conversions", format="%.2f"),
+                "Cost / Conversion": st.column_config.NumberColumn("Cost / Conversion", format="%.2f"),
+            },
+        )
+
+
 def render_google_ads(profile_name: str, filters: dict) -> None:
+    render_google_ads_connection_panel(filters)
+    st.divider()
+
     st.subheader("Google Ads performance and budget waste check")
+    st.caption("Manual/sample fallback for demo, onboarding and accounts that are not connected yet.")
     ads = filter_dataframe(create_ads_data(profile_name), {"Location": filters["Location"], "Service": filters["Service"]})
 
     st.dataframe(
@@ -1034,7 +1297,7 @@ def dashboard() -> None:
 
     st.divider()
     st.caption(
-        "MVP status: manual/sample data only. Connect Google Ads API, Google Business Profile API, email OTP and database in the backend phase."
+        "MVP status: Google Ads API supports live read-only reporting after Streamlit Secrets are configured. GMB API, email OTP and database remain backend-phase items."
     )
 
 
